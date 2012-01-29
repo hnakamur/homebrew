@@ -34,6 +34,9 @@ class Erlang < Formula
     sha1 '4c81febc679dc9e9c27e66317fc317df9a5a40e7'
   end
 
+  # 32-bit erlang build needs 32-bit ncurses.
+  depends_on 'ncurses' if ARGV.include? '--wxmac'
+
   head 'https://github.com/erlang/otp.git', :branch => 'dev'
 
   # We can't strip the beam executables or any plugins, there isn't really
@@ -45,6 +48,8 @@ class Erlang < Formula
 
   def options
     [
+      ['--wxmac', 'Enable wxmac and build 32-bit erlang.'],
+      ['--odbc', 'Enable odbc'],
       ['--disable-hipe', "Disable building hipe; fails on various OS X systems."],
       ['--halfword', 'Enable halfword emulator (64-bit builds only)'],
       ['--time', '"brew test --time" to include a time-consuming test.'],
@@ -80,13 +85,25 @@ class Erlang < Formula
       args << '--enable-hipe'
     end
 
-    if MacOS.prefer_64_bit?
+    if ARGV.include? '--odbc'
+      args << '--enable-odbc'
+    end
+
+    if ARGV.include? '--wxmac'
+      %w{ CFLAGS CXXFLAGS CPPFLAGS LDFLAGS OBJCFLAGS OBJCXXFLAGS }.each do |compiler_flag|
+        ENV.append compiler_flag, "-arch i386 -isysroot /Developer/SDKs/MacOSX10.6.sdk"
+      end
+      # if wxosx is installed, /usr/local/bin/wx-config may be overwritten.
+      args << '--with-wx-config=/usr/local/lib/wx/config/mac-unicode-release-2.8'
+    elsif MacOS.prefer_64_bit?
       args << "--enable-darwin-64bit"
       args << "--enable-halfword-emulator" if ARGV.include? '--halfword' # Does not work with HIPE yet. Added for testing only
     end
 
     system "./configure", *args
-    system "touch lib/wx/SKIP" if MacOS.snow_leopard?
+    unless ARGV.include? '--wxmac'
+      system "touch lib/wx/SKIP"
+    end
     system "make"
     system "make install"
 
